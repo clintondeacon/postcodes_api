@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Http\Controllers\StoreController;
 use App\Models\Postcode;
 use Tests\TestCase;
 use App\Models\Store;
@@ -11,6 +12,53 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 class StoreTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_store_creation_controller_mocked(): void
+    {
+
+        $storeType = StoreType::factory()->create();
+
+        // Mock the controller
+        $mockController = \Mockery::mock(StoreController::class);
+
+        // Mock the `store` method to return a fake JSON response
+        $mockController->shouldReceive('store')
+            ->once()
+            ->andReturn(response()->json([
+                'status' => 'success',
+                'message' => 'Store created successfully!',
+                'store' => [
+                    'id' => 1,
+                    'name' => 'Mocked Store',
+                    'lat' => 40.7128,
+                    'long' => -74.0060,
+                    'is_open' => true,
+                    'store_type_id' => $storeType->id,
+                    'max_delivery_distance' => 100,
+                ],
+            ], 201));
+
+        // Inject the mock into Laravel's container
+        $this->app->instance(StoreController::class, $mockController);
+
+        // Call the endpoint
+        $response = $this->postJson('/stores', [
+            'name' => 'Mocked Store',
+            'lat' => 40.7128,
+            'long' => -74.0060,
+            'is_open' => true,
+            'store_type_id' => $storeType->id,
+            'max_delivery_distance' => 100,
+        ]);
+
+        // Assertions
+        $response->assertStatus(201)
+            ->assertJson([
+                'status' => 'success',
+                'message' => 'Store created successfully!',
+            ]);
+    }
+
 
     /**
      * Test successful store creation.

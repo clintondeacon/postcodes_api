@@ -84,24 +84,49 @@ class ImportPostcodes extends Command
             $csv = Reader::createFromPath($file, 'r');
             $csv->setHeaderOffset(0); // The first row contains headers
 
+            $batchSize = 1000; // Adjust batch size for performance
+            $batchData = [];
+
             foreach ($csv->getRecords() as $record) {
                 $pcd = $record['pcd'] ?? null;
                 $lat = $record['lat'] ?? null;
                 $long = $record['long'] ?? null;
 
-                // Validate and insert/update the record
                 if ($pcd && is_numeric($lat) && is_numeric($long)) {
-                    Postcode::updateOrCreate(
-                        ['pcd' => $pcd],
-                        ['lat' => $lat, 'long' => $long]
-                    );
+                    $batchData[] = [
+                        'pcd' => $pcd,
+                        'lat' => $lat,
+                        'long' => $long,
+                    ];
+
+                    // Insert/update in batches
+                    if (count($batchData) >= $batchSize) {
+                        $this->insertBatch($batchData);
+                        $batchData = []; // Reset batch data
+                    }
                 }
             }
-            // Lets just do one file for this example
+
+            // Insert remaining records
+            if (!empty($batchData)) {
+                $this->insertBatch($batchData);
+            }
+
+            $this->info("Finished processing: " . basename($file));
+
+            // Process only one file for testing
             break;
         }
 
         $this->info("Postcode import completed.");
         return 0;
+    }
+
+    /**
+     * Insert or update records in bulk
+     */
+    private function insertBatch(array $batchData)
+    {
+        Postcode::upsert($batchData, ['pcd'], ['lat', 'long']);
     }
 }
